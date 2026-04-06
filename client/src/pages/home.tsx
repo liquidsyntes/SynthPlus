@@ -5,14 +5,16 @@ import type { Track } from "@shared/schema";
 import { TrackForm } from "@/components/TrackForm";
 import { TrackCard } from "@/components/TrackCard";
 import { Archive } from "@/components/Archive";
-import { Music, PlusCircle, Archive as ArchiveIcon } from "lucide-react";
+import { Analytics } from "@/components/Analytics";
+import { Music, PlusCircle, Archive as ArchiveIcon, BarChart as BarChartIcon } from "lucide-react";
 
-type Screen = "form" | "card" | "archive";
+type Screen = "form" | "card" | "archive" | "analytics";
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("form");
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [formData, setFormData] = useState<any>(null);
+  const [initialData, setInitialData] = useState<any>(null);
 
   const { data: tracks = [], isLoading } = useQuery<Track[]>({
     queryKey: ["/api/tracks"],
@@ -20,7 +22,9 @@ export default function Home() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", "/api/tracks", data);
+      const method = data.id ? "PUT" : "POST";
+      const url = data.id ? `/api/tracks/${data.id}` : "/api/tracks";
+      const res = await apiRequest(method, url, data);
       return res.json();
     },
     onSuccess: (track: Track) => {
@@ -53,12 +57,28 @@ export default function Home() {
   const handleViewTrack = useCallback((track: Track) => {
     setCurrentTrack(track);
     setFormData(null);
+    setInitialData(null);
     setScreen("card");
+  }, []);
+
+  const handleEditTrack = useCallback((track: Track) => {
+    setCurrentTrack(null);
+    setFormData(null);
+    setInitialData(track);
+    setScreen("form");
+  }, []);
+
+  const handleEditDraft = useCallback((draft: any) => {
+    setCurrentTrack(null);
+    setFormData(null);
+    setInitialData(draft);
+    setScreen("form");
   }, []);
 
   const handleNewTrack = useCallback(() => {
     setCurrentTrack(null);
     setFormData(null);
+    setInitialData(null);
     setScreen("form");
   }, []);
 
@@ -110,6 +130,18 @@ export default function Home() {
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setScreen("analytics")}
+              data-testid="button-analytics"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                screen === "analytics"
+                  ? "bg-purple-500/10 text-purple-400"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <BarChartIcon className="w-3.5 h-3.5" />
+              Аналитика
+            </button>
           </nav>
         </div>
         <div className="neon-line" />
@@ -118,7 +150,7 @@ export default function Home() {
       {/* Content */}
       <main className="max-w-4xl mx-auto px-4 py-6">
         {screen === "form" && (
-          <TrackForm onComplete={handleFormComplete} />
+          <TrackForm onComplete={handleFormComplete} initialData={initialData} />
         )}
         {screen === "card" && (
           <TrackCard
@@ -128,6 +160,7 @@ export default function Home() {
             isSaving={saveMutation.isPending}
             isSaved={!!currentTrack}
             onBack={handleNewTrack}
+            onEdit={currentTrack ? () => handleEditTrack(currentTrack) : undefined}
             onDelete={currentTrack ? () => deleteMutation.mutate(currentTrack.id) : undefined}
           />
         )}
@@ -137,7 +170,11 @@ export default function Home() {
             isLoading={isLoading}
             onViewTrack={handleViewTrack}
             onNewTrack={handleNewTrack}
+            onEditDraft={handleEditDraft}
           />
+        )}
+        {screen === "analytics" && (
+          <Analytics tracks={tracks} />
         )}
       </main>
     </div>

@@ -12,6 +12,7 @@ export interface IStorage {
   getAllTracks(): Promise<Track[]>;
   getTrack(id: number): Promise<Track | undefined>;
   createTrack(track: InsertTrack): Promise<Track>;
+  updateTrack(id: number, track: InsertTrack): Promise<Track>;
   deleteTrack(id: number): Promise<void>;
   importTracks(tracks: InsertTrack[]): Promise<Track[]>;
 }
@@ -27,6 +28,10 @@ export class DatabaseStorage implements IStorage {
 
   async createTrack(track: InsertTrack): Promise<Track> {
     return db.insert(tracks).values(track).returning().get();
+  }
+
+  async updateTrack(id: number, track: InsertTrack): Promise<Track> {
+    return db.update(tracks).set(track).where(eq(tracks.id, id)).returning().get();
   }
 
   async deleteTrack(id: number): Promise<void> {

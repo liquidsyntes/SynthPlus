@@ -1,8 +1,9 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, Save } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import {
   SUBGENRES,
   MOODS,
@@ -58,11 +59,46 @@ const initialState: FormState = {
 
 interface TrackFormProps {
   onComplete: (data: any) => void;
+  initialData?: any;
 }
 
-export function TrackForm({ onComplete }: TrackFormProps) {
+export function TrackForm({ onComplete, initialData }: TrackFormProps) {
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState<FormState>(initialState);
+  const { toast } = useToast();
+  
+  const [form, setForm] = useState<FormState>(() => {
+    if (initialData) {
+      return {
+        ...initialState,
+        ...initialData,
+        dynamicAnswers: typeof initialData.dynamicAnswers === 'string' 
+          ? JSON.parse(initialData.dynamicAnswers) 
+          : (initialData.dynamicAnswers || {}),
+        secondaryMoods: typeof initialData.secondaryMoods === 'string'
+          ? JSON.parse(initialData.secondaryMoods)
+          : (initialData.secondaryMoods || [])
+      };
+    }
+    return initialState;
+  });
+
+  useEffect(() => {
+    if (initialData) {
+      setForm({
+        ...initialState,
+        ...initialData,
+        dynamicAnswers: typeof initialData.dynamicAnswers === 'string' 
+          ? JSON.parse(initialData.dynamicAnswers) 
+          : (initialData.dynamicAnswers || {}),
+        secondaryMoods: typeof initialData.secondaryMoods === 'string'
+          ? JSON.parse(initialData.secondaryMoods)
+          : (initialData.secondaryMoods || [])
+      });
+    } else {
+      setForm(initialState);
+      setStep(0);
+    }
+  }, [initialData]);
 
   const canNext = useCallback(() => {
     switch (step) {
@@ -88,7 +124,8 @@ export function TrackForm({ onComplete }: TrackFormProps) {
       setStep(step + 1);
     } else {
       // Submit
-      const payload = {
+      const payload: any = {
+        ...((initialData && initialData.id) ? { id: initialData.id } : {}),
         name: form.name.trim(),
         artist: form.artist.trim(),
         year: form.year ? parseInt(form.year) : null,
@@ -103,11 +140,16 @@ export function TrackForm({ onComplete }: TrackFormProps) {
         key: form.key || null,
         mode: form.mode || null,
         notes: form.notes.trim() || null,
-        createdAt: new Date().toISOString(),
+        createdAt: (initialData && initialData.createdAt) || new Date().toISOString(),
       };
+      // If this was a draft, let home component know so it could delete it? 
+      // Home Component or TrackForm can just delete the draft if we supply draftId.
+      if (initialData && initialData.draftId) {
+        payload.draftId = initialData.draftId;
+      }
       onComplete(payload);
     }
-  }, [step, form, onComplete]);
+  }, [step, form, onComplete, initialData]);
 
   const handleBack = useCallback(() => {
     if (step > 0) setStep(step - 1);
@@ -134,6 +176,31 @@ export function TrackForm({ onComplete }: TrackFormProps) {
       dynamicAnswers: { ...prev.dynamicAnswers, [questionId]: value },
     }));
   }, []);
+
+  const handleSaveDraft = useCallback(() => {
+    const draftsString = localStorage.getItem("synthplus-drafts");
+    let drafts = [];
+    if (draftsString) {
+      try { drafts = JSON.parse(draftsString); } catch(e){}
+    }
+    const draftId = (initialData && initialData.draftId) || `draft-${Date.now()}`;
+    
+    drafts = drafts.filter((d: any) => d.draftId !== draftId);
+    
+    drafts.push({
+      ...form, 
+      draftId,
+      name: form.name || "Untitled Draft",
+      savedAt: new Date().toLocaleDateString(),
+    });
+    localStorage.setItem("synthplus-drafts", JSON.stringify(drafts));
+    
+    toast({
+      title: "Draft saved",
+      description: "You can find it in the Archive.",
+      className: "bg-black border-[var(--neon-pink)] text-white",
+    });
+  }, [form, initialData, toast]);
 
   const dynamicQuestions = getDynamicQuestions(
     form.mainSubgenre,
@@ -208,16 +275,26 @@ export function TrackForm({ onComplete }: TrackFormProps) {
 
       {/* Navigation */}
       <div className="flex items-center justify-between mt-8 pt-4 border-t border-border/50">
-        <Button
-          variant="ghost"
-          onClick={handleBack}
-          disabled={step === 0}
-          className="text-muted-foreground"
-          data-testid="button-back"
-        >
-          <ChevronLeft className="w-4 h-4 mr-1" />
-          Back
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            onClick={handleBack}
+            disabled={step === 0}
+            className="text-muted-foreground"
+            data-testid="button-back"
+          >
+            <ChevronLeft className="w-4 h-4 mr-1" />
+            Back
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleSaveDraft}
+            className="border-border/50 text-foreground hover:border-[var(--neon-cyan)] hover:text-white"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            Save Draft
+          </Button>
+        </div>
         <Button
           onClick={handleNext}
           disabled={!canNext()}

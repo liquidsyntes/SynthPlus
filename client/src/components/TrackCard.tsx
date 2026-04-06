@@ -19,6 +19,7 @@ import {
   FileText,
   RefreshCw,
   Activity,
+  Edit,
 } from "lucide-react";
 import { SUBGENRE_QUESTIONS, MOOD_QUESTIONS, getDynamicQuestions } from "@/lib/constants";
 
@@ -59,6 +60,7 @@ interface TrackCardProps {
   isSaved: boolean;
   onBack: () => void;
   onDelete?: () => void;
+  onEdit?: () => void;
 }
 
 function getTrackData(track: Track | null, formData: any) {
@@ -109,6 +111,7 @@ export function TrackCard({
   isSaved,
   onBack,
   onDelete,
+  onEdit,
 }: TrackCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -202,6 +205,12 @@ export function TrackCard({
             <Button onClick={onSave} disabled={isSaving} className="bg-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/80 text-black">
               {isSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
               Save
+            </Button>
+          )}
+          {isSaved && onEdit && (
+            <Button variant="outline" onClick={onEdit} className="border-[var(--neon-cyan)]/50 text-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/10">
+              <Edit className="w-4 h-4 mr-2" />
+              Edit
             </Button>
           )}
           <Button variant="outline" onClick={handleCopyPrompt} className="border-border/50 text-foreground hover:border-[var(--neon-violet)] hover:text-white">

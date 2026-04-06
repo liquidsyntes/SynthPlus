@@ -80,5 +80,26 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  // Update track
+  app.put("/api/tracks/:id", async (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "Invalid ID" });
+    }
+    try {
+      const parsed = insertTrackSchema.parse(req.body);
+      const track = await storage.updateTrack(id, parsed);
+      if (!track) {
+        return res.status(404).json({ error: "Track not found" });
+      }
+      res.json(track);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ error: e.errors });
+      }
+      throw e;
+    }
+  });
+
   return httpServer;
 }

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Track } from "@shared/schema";
@@ -12,6 +12,8 @@ import {
   Disc3,
   Heart,
   Music,
+  Trash2,
+  FileEdit,
 } from "lucide-react";
 import { SUBGENRES, MOODS } from "@/lib/constants";
 
@@ -20,13 +22,34 @@ interface ArchiveProps {
   isLoading: boolean;
   onViewTrack: (track: Track) => void;
   onNewTrack: () => void;
+  onEditDraft?: (draft: any) => void;
 }
 
-export function Archive({ tracks, isLoading, onViewTrack, onNewTrack }: ArchiveProps) {
+export function Archive({ tracks, isLoading, onViewTrack, onNewTrack, onEditDraft }: ArchiveProps) {
   const [filterSubgenre, setFilterSubgenre] = useState("");
   const [filterMood, setFilterMood] = useState("");
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<"tracks" | "drafts">("tracks");
+  const [drafts, setDrafts] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    try {
+      const data = localStorage.getItem("synthplus-drafts");
+      if (data) {
+        const parsed = JSON.parse(data);
+        setDrafts(Array.isArray(parsed) ? parsed : []);
+      }
+    } catch(e) {}
+  }, []);
+
+  const handleDeleteDraft = (e: React.MouseEvent, draftId: string) => {
+    e.stopPropagation();
+    const updated = drafts.filter(d => d.draftId !== draftId);
+    setDrafts(updated);
+    localStorage.setItem("synthplus-drafts", JSON.stringify(updated));
+    if (updated.length === 0) setActiveTab("tracks");
+  };
 
   const importMutation = useMutation({
     mutationFn: async (data: any[]) => {
@@ -132,8 +155,33 @@ export function Archive({ tracks, isLoading, onViewTrack, onNewTrack }: ArchiveP
         </div>
       </div>
 
+      {drafts.length > 0 && (
+        <div className="flex gap-4 border-b border-border/50">
+          <button
+            onClick={() => setActiveTab("tracks")}
+            className={`pb-2 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === "tracks"
+                ? "border-[var(--neon-pink)] text-[var(--neon-pink)]"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Saved Tracks
+          </button>
+          <button
+            onClick={() => setActiveTab("drafts")}
+            className={`pb-2 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === "drafts"
+                ? "border-[var(--neon-cyan)] text-[var(--neon-cyan)]"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Drafts ({drafts.length})
+          </button>
+        </div>
+      )}
+
       {/* Filters */}
-      <div className="space-y-3">
+      <div className={`space-y-3 ${activeTab === "drafts" ? "hidden" : ""}`}>
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -199,7 +247,39 @@ export function Archive({ tracks, isLoading, onViewTrack, onNewTrack }: ArchiveP
       </div>
 
       {/* Track grid */}
-      {isLoading ? (
+      {activeTab === "drafts" ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {drafts.map((draft) => (
+            <div
+              key={draft.draftId}
+              onClick={() => onEditDraft?.(draft)}
+              className="text-left p-4 rounded-lg border border-dashed border-border flex flex-col justify-between bg-card hover:border-[var(--neon-cyan)]/50 transition-all duration-200 cursor-pointer group"
+            >
+              <div className="space-y-1">
+                <div className="flex items-start justify-between">
+                  <h3 className="text-sm font-semibold text-foreground group-hover:text-[var(--neon-cyan)] transition-colors">
+                    {draft.name || "Untitled Draft"}
+                  </h3>
+                  <button
+                    onClick={(e) => handleDeleteDraft(e, draft.draftId)}
+                    className="text-muted-foreground hover:text-destructive p-1 rounded-md"
+                    title="Delete Draft"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Saved: {draft.savedAt}
+                </p>
+                <div className="flex items-center gap-1.5 mt-2">
+                  <FileEdit className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Local Draft</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[1, 2, 3, 4].map((i) => (
             <div
@@ -291,7 +371,7 @@ export function Archive({ tracks, isLoading, onViewTrack, onNewTrack }: ArchiveP
         </div>
       )}
 
-      {filteredTracks.length > 0 && (
+      {activeTab === "tracks" && filteredTracks.length > 0 && (
         <p className="text-center text-[10px] text-muted-foreground/50">
           {filteredTracks.length} of {tracks.length} tracks
         </p>
